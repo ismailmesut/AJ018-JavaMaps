@@ -8,9 +8,9 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.fragment.app.FragmentActivity;
 import androidx.room.Room;
-
 import android.Manifest;
 import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.location.Location;
@@ -19,7 +19,6 @@ import android.location.LocationManager;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.Toast;
-
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
@@ -31,6 +30,13 @@ import com.ismailmesutmujde.javamaps.databinding.ActivityMapsBinding;
 import com.ismailmesutmujde.javamaps.model.Place;
 import com.ismailmesutmujde.javamaps.roomdb.PlaceDao;
 import com.ismailmesutmujde.javamaps.roomdb.PlaceDatabase;
+
+import java.util.Map;
+
+import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers;
+import io.reactivex.rxjava3.disposables.CompositeDisposable;
+import io.reactivex.rxjava3.schedulers.Schedulers;
+
 
 public class MapsActivity extends FragmentActivity implements OnMapReadyCallback, GoogleMap.OnMapLongClickListener {
 
@@ -45,6 +51,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     PlaceDao placeDao;
     Double selectedLatitude;
     Double selectedLongitude;
+    private CompositeDisposable compositeDisposable = new CompositeDisposable();
 
 
     @Override
@@ -65,7 +72,9 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         info = false;
 
         //placeDb = Room.databaseBuilder(MapsActivity.this, PlaceDatabase.class, "Places").build();
-        placeDb = Room.databaseBuilder(getApplicationContext(), PlaceDatabase.class, "Places").build();
+        placeDb = Room.databaseBuilder(getApplicationContext(), PlaceDatabase.class, "Places")
+                //.allowMainThreadQueries()
+                .build();
         placeDao = placeDb.placeDao();
         selectedLatitude = 0.0;
         selectedLongitude = 0.0;
@@ -174,11 +183,39 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     public void save(View view) {
         Place place = new Place(binding.placeNameText.getText().toString(), selectedLatitude, selectedLongitude);
-        placeDao.insert(place);
 
+        // threading -> Main (UI): Ana işlemlerin yapıldığı yer. Burada kullanıcı arayüzü ile ilgili işlemleri yapıyoruz, Default
+        // threading -> Default (CPU Intensive): Arkaplanda çalışır ve işlemciyi yorabilecek işlemlerin yapıldığı yer.
+        // threadinh -> IO (Network, Database): Input/Output işlemlerini yapar. Örnek; internetten veri istenmesi
+
+        // placeDao.insert(place).subscribeOn(Schedulers.io()).subscribe();
+
+        // disposable
+        compositeDisposable.add(placeDao.insert(place)
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(MapsActivity.this::handleResponse)
+        );
+    }
+
+    private void handleResponse() {
+        Intent intent = new Intent(MapsActivity.this, MainActivity.class);
+        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        startActivity(intent);
     }
 
     public void delete(View view) {
+        /*
+        compositeDisposable.add(placeDao.delete()
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(MapsActivity.this::handleResponse)
+        );*/
+    }
 
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        compositeDisposable.clear();
     }
 }
