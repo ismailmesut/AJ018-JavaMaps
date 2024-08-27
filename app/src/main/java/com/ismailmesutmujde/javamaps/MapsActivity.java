@@ -10,6 +10,7 @@ import androidx.fragment.app.FragmentActivity;
 
 import android.Manifest;
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.location.Location;
 import android.location.LocationListener;
@@ -34,6 +35,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     ActivityResultLauncher<String> permissionLauncher;
     LocationManager locationManager;
     LocationListener locationListener;
+    SharedPreferences sharedPreferences;
+    boolean info;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -46,7 +49,11 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
                 .findFragmentById(R.id.map);
         mapFragment.getMapAsync(this);
+
         registerLauncher();
+
+        sharedPreferences = this.getSharedPreferences("com.ismailmesutmujde.javamaps", MODE_PRIVATE);
+        info = false;
     }
 
     /**
@@ -61,17 +68,6 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     @Override
     public void onMapReady(GoogleMap googleMap) {
 
-
-        // lat  -> latitude (enlem)
-        // long -> longitude (boylam)
-
-        // 48.8559713, 2.2930037
-
-        // Add a marker in Sydney and move the camera
-        //LatLng sydney = new LatLng(-34, 151);
-        //mMap.addMarker(new MarkerOptions().position(sydney).title("Marker in Sydney"));
-        //mMap.moveCamera(CameraUpdateFactory.newLatLng(sydney));
-
         mMap = googleMap;
 
         // casting
@@ -80,6 +76,15 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             @Override
             public void onLocationChanged(@NonNull Location location) {
                 System.out.println("location : " + location.toString());
+
+                info = sharedPreferences.getBoolean("info", false);
+
+                if (info == false) {
+                    LatLng userLocation = new LatLng(location.getLatitude(), location.getLongitude());
+                    mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(userLocation, 15));
+                    sharedPreferences.edit().putBoolean("info", true).apply();
+                }
+
             }
 
         };
@@ -99,11 +104,28 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             }
         } else {
             locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER,0,0, locationListener);
+            // get last location (son bilinen konumu alma)
+            Location lastLocation = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
+            if(lastLocation != null) {
+                LatLng lastUserLocation = new LatLng(lastLocation.getLatitude(), lastLocation.getLongitude());
+                mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(lastUserLocation, 15));
+            }
+            mMap.setMyLocationEnabled(true);
         }
 
-        LatLng eiffel = new LatLng(-48.8559713, 2.2930037);
-        mMap.addMarker(new MarkerOptions().position(eiffel).title("Marker in Eiffel Tower"));
-        mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(eiffel,15));
+
+        // lat  -> latitude (enlem)
+        // long -> longitude (boylam)
+
+        // 48.8559713, 2.2930037
+
+        // Add a marker in Sydney and move the camera
+        //LatLng sydney = new LatLng(-34, 151);
+        //mMap.addMarker(new MarkerOptions().position(sydney).title("Marker in Sydney"));
+        //mMap.moveCamera(CameraUpdateFactory.newLatLng(sydney));
+        //LatLng eiffel = new LatLng(-48.8559713, 2.2930037);
+        //mMap.addMarker(new MarkerOptions().position(eiffel).title("Marker in Eiffel Tower"));
+        //mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(eiffel,15));
     }
 
     private void registerLauncher() {
